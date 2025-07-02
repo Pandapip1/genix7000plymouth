@@ -50,8 +50,8 @@
             clipRotation ? 0,
             clipInverse ? false,
             colors ? [
-              "\#5277C3"
-              "\#7CAEDC"
+              "#5277C3"
+              "#7CAEDC"
             ],
           }:
           pkgs.runCommand name
@@ -236,6 +236,21 @@
                           type = lib.types.boolean;
                           default = false;
                           description = "Reverse clipping order";
+                        };
+                        colors = lib.mkOption {
+                          type = lib.types.listOf (
+                            lib.types.addCheck lib.types.str (
+                              str:
+                              (lib.hasPrefix "#" str)
+                              && (lib.stringLength str == 7)
+                              && (lib.match "^[0-9a-fA-F]+$" (lib.substring 1 (lib.stringLength str - 1) str) != null)
+                            )
+                          );
+                          default = [
+                            "#5277C3"
+                            "#7CAEDC"
+                          ];
+                          description = "Color palette to use";
                         };
                       };
                     };
