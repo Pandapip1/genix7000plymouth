@@ -81,7 +81,7 @@
           {
             name,
             animation,
-            frameRate ? 50,
+            frameRate ? 15,
             duration ? 4,
           }:
           pkgs.runCommand name { } (
@@ -173,69 +173,69 @@
                     argsType = lib.types.submodule {
                       options = {
                         numLambdas = lib.mkOption {
-                          type = lib.types.int;
+                          type = lib.types.addCheck lib.types.int (x: x >= 3 && x <= 25);
                           default = 6;
-                          description = "The number of lambdas";
+                          description = "Number of lambdas";
                         };
                         lambdaThickness = lib.mkOption {
                           type = lib.types.int;
-                          default = 20;
-                          description = "The thickness (in who knows what units) of the lambdas";
+                          default = lib.types.addCheck lib.types.int (x: x >= 5 && x <= 30);
+                          description = "Lambda thickness (unknown units)";
                         };
                         imageWidth = lib.mkOption {
                           type = lib.types.int;
                           default = 256;
-                          description = "The image height";
+                          description = "Image width (in px)";
                         };
                         imageHeight = lib.mkOption {
                           type = lib.types.int;
                           default = 256;
-                          description = "The image height";
+                          description = "Image height (in px)";
                         };
                         offsetX = lib.mkOption {
                           type = lib.types.int;
                           default = -24;
-                          description = "The x offset (what is this?)";
+                          description = "X offset of lambda (unknown units)";
                         };
                         offsetY = lib.mkOption {
                           type = lib.types.int;
                           default = -42;
-                          description = "The y offset (seriously, what is this?!)";
+                          description = "Y offset of lambda (unknown units)";
                         };
                         gapsX = lib.mkOption {
                           type = lib.types.int;
                           default = -24;
-                          description = "?";
+                          description = "X offset after clipping (use for gaps) (unknown units)";
                         };
                         gapsY = lib.mkOption {
                           type = lib.types.int;
                           default = -42;
-                          description = "???";
+                          description = "Y offset after clipping (use for gaps) (unknown units)";
                         };
                         rotation = lib.mkOption {
-                          type = lib.types.int;
+                          type = lib.types.addCheck lib.types.int (x: x >= -180 && x <= 180);
                           default = 0;
-                          description = "The rotation angle of the lambdas (in degrees)";
+                          description = "Rotation of each lambda (in degrees)";
                         };
                         angle = lib.mkOption {
-                          type = lib.types.int;
+                          type = lib.types.addCheck lib.types.int (x: x >= -180 && x <= 180);
                           default = 30;
-                          description = "The rotation angle of the entire system (in degrees)";
+                          description = "Lambda arm angle (in degrees)";
                         };
                         clipRadius = lib.mkOption {
-                          type = lib.types.int;
+                          type = lib.types.addCheck lib.types.int (x: x >= 0 && x <= 300);
                           default = 92;
-                          description = "????";
+                          description = "Clipping n-gon radius (unknown units)";
                         };
                         clipRotation = lib.mkOption {
-                          type = lib.types.int;
+                          type = lib.types.addCheck lib.types.int (x: x >= -180 && x <= 180);
                           default = 0;
-                          description = "?!";
+                          description = "Clipping n-gon rotation (in degrees)";
                         };
                         clipInverse = lib.mkOption {
                           type = lib.types.boolean;
                           default = false;
-                          description = "I have truly no idea what this does";
+                          description = "Reverse clipping order";
                         };
                       };
                     };
@@ -263,12 +263,12 @@
                       };
                       frameRate = lib.mkOption {
                         type = lib.types.int;
-                        default = 10;
+                        default = 15;
                         description = "The frame rate (in frames per second) of the animation";
                       };
                       duration = lib.mkOption {
                         type = lib.types.int;
-                        default = 10;
+                        example = 4;
                         description = "The length (in seconds) of the animation";
                       };
                     };
