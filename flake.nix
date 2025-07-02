@@ -168,8 +168,8 @@
           {
             name,
             animation,
+            duration,
             frameRate ? 15,
-            duration ? 4,
           }:
           pkgs.runCommand name { } (
             ''
