@@ -12,7 +12,12 @@
   };
 
   outputs =
-    inputs@{ flake-parts, nixpkgs, ... }:
+    inputs@{
+      self,
+      flake-parts,
+      nixpkgs,
+      ...
+    }:
     flake-parts.lib.mkFlake { inherit inputs; } (
       let
         inherit (nixpkgs) lib;
@@ -129,109 +134,76 @@
               inherit system;
               overlays = [
                 (final: prev: {
-                  openscad-unstable-fhs = prev.buildFHSEnv (rec {
-                    name = "openscad-fhs";
-
-                    mesaDrivers = with prev; [
-                      mesa
-                      libGL
-                      libglvnd
-                      xorg.libX11
-                      xorg.libXext
-                      xorg.libXdamage
-                      xorg.libXfixes
-                      xorg.libXxf86vm
-                      xorg.libXi
-                      xorg.libXrandr
-                      xorg.libXrender
-                      wayland
-                    ];
-
-                    targetPkgs =
-                      pkgs:
+                  mkGraphicalEnv = final.callPackage "${self}/pkgs/build-support/mkGraphicalEnv" { };
+                  openscad-unstable-fhs =
+                    final.callPackage "${self}/pkgs/by-name/openscad-unstable-fhs/package.nix"
+                      { };
+                  genix-to-image = prev.writeScriptBin "to-image" (
+                    builtins.replaceStrings
                       [
-                        pkgs.openscad-unstable
+                        "./genix.scad"
+                        "openscad"
+                        "/usr/bin/env nu"
                       ]
-                      ++ mesaDrivers;
-
-                    runScript = "openscad";
-
-                    profile = ''
-                      export LIBGL_DRIVERS_PATH=/run/opengl-driver/lib
-                      export LD_LIBRARY_PATH=/run/opengl-driver/lib:${lib.makeLibraryPath mesaDrivers}:$LD_LIBRARY_PATH
-                    '';
-
-                    extraInstallCommands = ''
-                      mkdir -p $out/run/opengl-driver
-                      ln -s ${prev.mesa}/lib $out/run/opengl-driver/lib
-                    '';
-                  });
-                  genix-to-image =
-                    prev.writeScriptBin "to-image" (
-                      builtins.replaceStrings
-                        [
-                          "./genix.scad"
-                          "openscad"
-                          "/usr/bin/env nu"
-                        ]
-                        [
-                          "${inputs.genix7000}/genix.scad"
-                          (lib.getExe final.openscad-unstable-fhs) # Latest stable (from 2021!) has a bug relevant to this project
-                          (lib.getExe prev.nushell)
-                        ]
-                        (builtins.readFile "${inputs.genix7000}/to-image.nu")
-                    );
-                    mkGenixFrame =
-                      name: rawArgs:
-                      let
-                        args = validateArgs rawArgs mkGenixFrameArgsType;
-                      in
-                      prev.runCommand name
-                        {
-                          nativeBuildInputs = [
-                            final.genix-to-image
-                          ];
-                        }
-                        ''
-                          to-image \
-                            --num ${toString args.numLambdas} \
-                            --thick ${toString args.lambdaThickness} \
-                            --imgsize "${toString args.imageWidth},${toString args.imageHeight}" \
-                            --offset "${toString args.offsetX},${toString args.offsetY}" \
-                            --gaps "${toString args.gapsX},${toString args.gapsY}" \
-                            --rotation ${toString args.rotation} \
-                            --angle ${toString args.angle} \
-                            --clipr ${toString args.clipRadius} \
-                            --cliprot ${toString args.clipRotation} \
-                            --clipinv ${if args.clipInverse then "true" else "false"} \
-                            ${name} \
-                            ${builtins.concatStringsSep " " (map (color: "\"${color}\"") args.colors)}
-                          mv ${name} $out
-                        '';
-                    mkGenixPlymouthTheme =
+                      [
+                        ("${inputs.genix7000}/genix.scad")
+                        (lib.getExe final.openscad-unstable-fhs) # Latest stable (from 2021!) has a bug relevant to this project
+                        (lib.getExe prev.nushell)
+                      ]
+                      (builtins.readFile "${inputs.genix7000}/to-image.nu")
+                  );
+                  mkGenixFrame =
+                    name: rawArgs:
+                    let
+                      args = validateArgs rawArgs mkGenixFrameArgsType;
+                    in
+                    prev.runCommand name
                       {
-                        name,
-                        animation,
-                        duration,
-                        frameRate ? 15,
-                      }:
-                      prev.runCommand name { } (
-                        ''
-                          mkdir -p $out/share/plymouth/themes/${name}
-                        ''
-                        + (builtins.concatStringsSep "\n" (
-                          map (
-                            frame:
-                            "cp ${
-                              final.mkGenixFrame "${name}-frame-${toString frame}.png" (animation (frame / (frameRate + 0.0)))
-                            } $out/share/plymouth/themes/${name}/frame-${toString frame}.png"
-                          ) (lib.range 0 (frameRate * duration - 1))
-                        ))
-                      );
+                        nativeBuildInputs = [
+                          final.genix-to-image
+                        ];
+                      }
+                      ''
+                        to-image \
+                          --num ${toString args.numLambdas} \
+                          --thick ${toString args.lambdaThickness} \
+                          --imgsize "${toString args.imageWidth},${toString args.imageHeight}" \
+                          --offset "${toString args.offsetX},${toString args.offsetY}" \
+                          --gaps "${toString args.gapsX},${toString args.gapsY}" \
+                          --rotation ${toString args.rotation} \
+                          --angle ${toString args.angle} \
+                          --clipr ${toString args.clipRadius} \
+                          --cliprot ${toString args.clipRotation} \
+                          --clipinv ${if args.clipInverse then "true" else "false"} \
+                          "${name}" \
+                          ${builtins.concatStringsSep " " (map (color: "\"${color}\"") args.colors)}
+                        mv ${name} $out
+                      '';
+                  mkGenixPlymouthTheme =
+                    {
+                      name,
+                      animation,
+                      duration,
+                      frameRate ? 15,
+                    }:
+                    prev.runCommand name { } (
+                      ''
+                        mkdir -p $out/share/plymouth/themes/${name}
+                      ''
+                      + (builtins.concatStringsSep "\n" (
+                        map (
+                          frame:
+                          "cp ${
+                            final.mkGenixFrame "${name}-frame-${toString frame}.png" (animation (frame / (frameRate + 0.0)))
+                          } $out/share/plymouth/themes/${name}/frame-${toString frame}.png"
+                        ) (lib.range 0 (frameRate * duration - 1))
+                      ))
+                    );
                 })
               ];
             };
             packages = {
+              inherit (pkgs) openscad-unstable-fhs genix-to-image;
               testGenixFrame = pkgs.mkGenixFrame "test-genix-frame.png" { };
               testGenixPlymouthTheme = pkgs.mkGenixPlymouthTheme {
                 name = "test-genix-plymouth-theme";
