@@ -107,20 +107,15 @@
               }
             ];
           }).options.args.value;
-        mkIntTypeBetween =
-          start: end:
-          lib.recursiveUpdate (lib.types.addCheck lib.types.int (x: x >= start && x <= end)) {
-            description = "${lib.types.int.description} between ${toString start} and ${toString end}";
-          };
         mkGenixFrameArgsType = lib.types.submodule {
           options = {
             numLambdas = lib.mkOption {
-              type = mkIntTypeBetween 3 25;
+              type = lib.types.intBetween 3 25;
               default = 6;
               description = "Number of lambdas";
             };
             lambdaThickness = lib.mkOption {
-              type = mkIntTypeBetween 5 30;
+              type = lib.types.intBetween 5 30;
               default = 20;
               description = "Lambda thickness (unknown units)";
             };
@@ -155,22 +150,22 @@
               description = "Y offset after clipping (use for gaps) (unknown units)";
             };
             rotation = lib.mkOption {
-              type = mkIntTypeBetween (-180) 180;
+              type = lib.types.intBetween (-180) 180;
               default = 0;
               description = "Rotation of each lambda (in degrees)";
             };
             angle = lib.mkOption {
-              type = mkIntTypeBetween (-180) 180;
+              type = lib.types.intBetween (-180) 180;
               default = 30;
               description = "Lambda arm angle (in degrees)";
             };
             clipRadius = lib.mkOption {
-              type = mkIntTypeBetween 0 300;
+              type = lib.types.intBetween 0 300;
               default = 92;
               description = "Clipping n-gon radius (unknown units)";
             };
             clipRotation = lib.mkOption {
-              type = mkIntTypeBetween (-180) 180;
+              type = lib.types.intBetween (-180) 180;
               default = 0;
               description = "Clipping n-gon rotation (in degrees)";
             };

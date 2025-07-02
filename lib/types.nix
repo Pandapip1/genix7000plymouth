@@ -4,6 +4,13 @@
   lib,
 }:
 
+let
+  mkTypeBetween =
+    type: start: end:
+    lib.recursiveUpdate (lib.types.addCheck type (x: x >= start && x <= end)) {
+      description = "${type.description} between ${toString start} and ${toString end}";
+    };
+in
 {
   # Add'l types
   color =
@@ -16,4 +23,8 @@
     // {
       description = "hexadecimal color code";
     };
+  
+  # Type functions
+  intBetween = mkTypeBetween lib.types.int;
+  floatBetween = mkTypeBetween lib.types.float;
 }
