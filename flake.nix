@@ -158,9 +158,9 @@
                 --clipr ${toString args.clipRadius} \
                 --cliprot ${toString args.clipRotation} \
                 --clipinv ${if args.clipInverse then "true" else "false"} \
-                ./tmp.png \
+                ${name} \
                 ${builtins.concatStringsSep " " (map (color: "\"${color}\"") args.colors)}
-              mv ./tmp.png $out
+              mv ${name} $out
             '';
         mkGenixPlymouthTheme =
           pkgs:
