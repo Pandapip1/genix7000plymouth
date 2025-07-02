@@ -108,14 +108,7 @@
               description = "Reverse clipping order";
             };
             colors = lib.mkOption {
-              type = lib.types.listOf (
-                lib.types.addCheck lib.types.str (
-                  str:
-                  (lib.hasPrefix "#" str)
-                  && (lib.stringLength str == 7)
-                  && (lib.match "^[0-9a-fA-F]+$" (lib.substring 1 (lib.stringLength str - 1) str) != null)
-                )
-              );
+              type = lib.types.listOf lib.types.color;
               default = [
                 "#5277C3"
                 "#7CAEDC"
@@ -134,6 +127,9 @@
               inherit system;
               overlays = [
                 (final: prev: {
+                  lib.types = lib.recursiveUpdate lib.types (
+                    final.callPackage "${self}/lib/types.nix" { }
+                  );
                   mkGraphicalEnv = final.callPackage "${self}/pkgs/build-support/mkGraphicalEnv" { };
                   openscad-unstable-fhs =
                     final.callPackage "${self}/pkgs/by-name/openscad-unstable-fhs/package.nix"
