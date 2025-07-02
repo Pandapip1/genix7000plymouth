@@ -20,7 +20,79 @@
     }:
     flake-parts.lib.mkFlake { inherit inputs; } (
       let
-        inherit (nixpkgs) lib;
+        lib' = nixpkgs.lib;
+        overlay = final: prev: {
+          lib = lib'.recursiveUpdate prev.lib {
+            types = final.callPackage "${self}/lib/types.nix" { };
+          };
+          mkGraphicalEnv = final.callPackage "${self}/pkgs/build-support/mkGraphicalEnv" { };
+          openscad-unstable-fhs =
+            final.callPackage "${self}/pkgs/by-name/openscad-unstable-fhs/package.nix"
+              { };
+          genix-to-image = prev.writeScriptBin "to-image" (
+            builtins.replaceStrings
+              [
+                "./genix.scad"
+                "openscad"
+                "/usr/bin/env nu"
+              ]
+              [
+                ("${inputs.genix7000}/genix.scad")
+                (prev.lib.getExe final.openscad-unstable-fhs) # Latest stable (from 2021!) has a bug relevant to this project
+                (prev.lib.getExe prev.nushell)
+              ]
+              (builtins.readFile "${inputs.genix7000}/to-image.nu")
+          );
+          mkGenixFrame =
+            name: rawArgs:
+            let
+              args = validateArgs rawArgs mkGenixFrameArgsType;
+            in
+            prev.runCommand name
+              {
+                nativeBuildInputs = [
+                  final.genix-to-image
+                ];
+              }
+              ''
+                to-image \
+                  --num ${toString args.numLambdas} \
+                  --thick ${toString args.lambdaThickness} \
+                  --imgsize "${toString args.imageWidth},${toString args.imageHeight}" \
+                  --offset "${toString args.offsetX},${toString args.offsetY}" \
+                  --gaps "${toString args.gapsX},${toString args.gapsY}" \
+                  --rotation ${toString args.rotation} \
+                  --angle ${toString args.angle} \
+                  --clipr ${toString args.clipRadius} \
+                  --cliprot ${toString args.clipRotation} \
+                  --clipinv ${if args.clipInverse then "true" else "false"} \
+                  "${name}" \
+                  ${builtins.concatStringsSep " " (map (color: "\"${color}\"") args.colors)}
+                mv ${name} $out
+              '';
+          mkGenixPlymouthTheme =
+            {
+              name,
+              animation,
+              duration,
+              frameRate ? 15,
+            }:
+            prev.runCommand name { } (
+              ''
+                mkdir -p $out/share/plymouth/themes/${name}
+              ''
+              + (builtins.concatStringsSep "\n" (
+                map (
+                  frame:
+                  "cp ${
+                    final.mkGenixFrame "${name}-frame-${toString frame}.png" (animation (frame / (frameRate + 0.0)))
+                  } $out/share/plymouth/themes/${name}/frame-${toString frame}.png"
+                ) (prev.lib.range 0 (frameRate * duration - 1))
+              ))
+            );
+        };
+        # System doesn't matter here, only overlays do
+        inherit (import nixpkgs { system = "x86_64-linux"; overlays = [ overlay ]; }) lib;
         validateArgs =
           args: argsType:
           (lib.evalModules {
@@ -121,82 +193,16 @@
       {
         systems = nixpkgs.lib.platforms.linux;
         perSystem =
-          { system, pkgs, ... }:
+          {
+            system,
+            pkgs,
+            lib,
+            ...
+          }:
           {
             _module.args.pkgs = import nixpkgs {
               inherit system;
-              overlays = [
-                (final: prev: {
-                  lib.types = lib.recursiveUpdate lib.types (
-                    final.callPackage "${self}/lib/types.nix" { }
-                  );
-                  mkGraphicalEnv = final.callPackage "${self}/pkgs/build-support/mkGraphicalEnv" { };
-                  openscad-unstable-fhs =
-                    final.callPackage "${self}/pkgs/by-name/openscad-unstable-fhs/package.nix"
-                      { };
-                  genix-to-image = prev.writeScriptBin "to-image" (
-                    builtins.replaceStrings
-                      [
-                        "./genix.scad"
-                        "openscad"
-                        "/usr/bin/env nu"
-                      ]
-                      [
-                        ("${inputs.genix7000}/genix.scad")
-                        (lib.getExe final.openscad-unstable-fhs) # Latest stable (from 2021!) has a bug relevant to this project
-                        (lib.getExe prev.nushell)
-                      ]
-                      (builtins.readFile "${inputs.genix7000}/to-image.nu")
-                  );
-                  mkGenixFrame =
-                    name: rawArgs:
-                    let
-                      args = validateArgs rawArgs mkGenixFrameArgsType;
-                    in
-                    prev.runCommand name
-                      {
-                        nativeBuildInputs = [
-                          final.genix-to-image
-                        ];
-                      }
-                      ''
-                        to-image \
-                          --num ${toString args.numLambdas} \
-                          --thick ${toString args.lambdaThickness} \
-                          --imgsize "${toString args.imageWidth},${toString args.imageHeight}" \
-                          --offset "${toString args.offsetX},${toString args.offsetY}" \
-                          --gaps "${toString args.gapsX},${toString args.gapsY}" \
-                          --rotation ${toString args.rotation} \
-                          --angle ${toString args.angle} \
-                          --clipr ${toString args.clipRadius} \
-                          --cliprot ${toString args.clipRotation} \
-                          --clipinv ${if args.clipInverse then "true" else "false"} \
-                          "${name}" \
-                          ${builtins.concatStringsSep " " (map (color: "\"${color}\"") args.colors)}
-                        mv ${name} $out
-                      '';
-                  mkGenixPlymouthTheme =
-                    {
-                      name,
-                      animation,
-                      duration,
-                      frameRate ? 15,
-                    }:
-                    prev.runCommand name { } (
-                      ''
-                        mkdir -p $out/share/plymouth/themes/${name}
-                      ''
-                      + (builtins.concatStringsSep "\n" (
-                        map (
-                          frame:
-                          "cp ${
-                            final.mkGenixFrame "${name}-frame-${toString frame}.png" (animation (frame / (frameRate + 0.0)))
-                          } $out/share/plymouth/themes/${name}/frame-${toString frame}.png"
-                        ) (lib.range 0 (frameRate * duration - 1))
-                      ))
-                    );
-                })
-              ];
+              overlays = [ overlay ];
             };
             packages = {
               inherit (pkgs) openscad-unstable-fhs genix-to-image;
@@ -216,7 +222,12 @@
         flake = {
           nixosModules = {
             genix7000 =
-              { config, pkgs, ... }:
+              {
+                config,
+                pkgs,
+                lib,
+                ...
+              }:
               {
                 options = {
                   boot.plymouth.genix7000 = {
