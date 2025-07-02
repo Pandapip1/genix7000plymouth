@@ -16,22 +16,6 @@
     flake-parts.lib.mkFlake { inherit inputs; } (
       let
         inherit (nixpkgs) lib;
-        genix-to-image =
-          pkgs:
-          pkgs.writeScriptBin "to-image" (
-            builtins.replaceStrings
-              [
-                "./genix.scad"
-                "openscad"
-                "/usr/bin/env nu"
-              ]
-              [
-                "${inputs.genix7000}/genix.scad"
-                (lib.getExe pkgs.openscad-unstable-fhs) # Latest stable (from 2021!) has a bug relevant to this project
-                (lib.getExe pkgs.nushell)
-              ]
-              (builtins.readFile "${inputs.genix7000}/to-image.nu")
-          );
         validateArgs =
           args: argsType:
           (lib.evalModules {
@@ -135,54 +119,6 @@
             };
           };
         };
-        mkGenixFrame =
-          pkgs: name: rawArgs:
-          let
-            args = validateArgs rawArgs mkGenixFrameArgsType;
-          in
-          pkgs.runCommand name
-            {
-              nativeBuildInputs = [
-                (genix-to-image pkgs)
-              ];
-            }
-            ''
-              to-image \
-                --num ${toString args.numLambdas} \
-                --thick ${toString args.lambdaThickness} \
-                --imgsize "${toString args.imageWidth},${toString args.imageHeight}" \
-                --offset "${toString args.offsetX},${toString args.offsetY}" \
-                --gaps "${toString args.gapsX},${toString args.gapsY}" \
-                --rotation ${toString args.rotation} \
-                --angle ${toString args.angle} \
-                --clipr ${toString args.clipRadius} \
-                --cliprot ${toString args.clipRotation} \
-                --clipinv ${if args.clipInverse then "true" else "false"} \
-                ${name} \
-                ${builtins.concatStringsSep " " (map (color: "\"${color}\"") args.colors)}
-              mv ${name} $out
-            '';
-        mkGenixPlymouthTheme =
-          pkgs:
-          {
-            name,
-            animation,
-            duration,
-            frameRate ? 15,
-          }:
-          pkgs.runCommand name { } (
-            ''
-              mkdir -p $out/share/plymouth/themes/${name}
-            ''
-            + (builtins.concatStringsSep "\n" (
-              map (
-                frame:
-                "cp ${
-                  mkGenixFrame pkgs "${name}-frame-${toString frame}.png" (animation (frame / (frameRate + 0.0)))
-                } $out/share/plymouth/themes/${name}/frame-${toString frame}.png"
-              ) (lib.range 0 (frameRate * duration - 1))
-            ))
-          );
       in
       {
         systems = nixpkgs.lib.platforms.linux;
@@ -230,12 +166,74 @@
                       ln -s ${prev.mesa}/lib $out/run/opengl-driver/lib
                     '';
                   });
+                  genix-to-image =
+                    prev.writeScriptBin "to-image" (
+                      builtins.replaceStrings
+                        [
+                          "./genix.scad"
+                          "openscad"
+                          "/usr/bin/env nu"
+                        ]
+                        [
+                          "${inputs.genix7000}/genix.scad"
+                          (lib.getExe final.openscad-unstable-fhs) # Latest stable (from 2021!) has a bug relevant to this project
+                          (lib.getExe prev.nushell)
+                        ]
+                        (builtins.readFile "${inputs.genix7000}/to-image.nu")
+                    );
+                    mkGenixFrame =
+                      name: rawArgs:
+                      let
+                        args = validateArgs rawArgs mkGenixFrameArgsType;
+                      in
+                      prev.runCommand name
+                        {
+                          nativeBuildInputs = [
+                            final.genix-to-image
+                          ];
+                        }
+                        ''
+                          to-image \
+                            --num ${toString args.numLambdas} \
+                            --thick ${toString args.lambdaThickness} \
+                            --imgsize "${toString args.imageWidth},${toString args.imageHeight}" \
+                            --offset "${toString args.offsetX},${toString args.offsetY}" \
+                            --gaps "${toString args.gapsX},${toString args.gapsY}" \
+                            --rotation ${toString args.rotation} \
+                            --angle ${toString args.angle} \
+                            --clipr ${toString args.clipRadius} \
+                            --cliprot ${toString args.clipRotation} \
+                            --clipinv ${if args.clipInverse then "true" else "false"} \
+                            ${name} \
+                            ${builtins.concatStringsSep " " (map (color: "\"${color}\"") args.colors)}
+                          mv ${name} $out
+                        '';
+                    mkGenixPlymouthTheme =
+                      {
+                        name,
+                        animation,
+                        duration,
+                        frameRate ? 15,
+                      }:
+                      prev.runCommand name { } (
+                        ''
+                          mkdir -p $out/share/plymouth/themes/${name}
+                        ''
+                        + (builtins.concatStringsSep "\n" (
+                          map (
+                            frame:
+                            "cp ${
+                              final.mkGenixFrame "${name}-frame-${toString frame}.png" (animation (frame / (frameRate + 0.0)))
+                            } $out/share/plymouth/themes/${name}/frame-${toString frame}.png"
+                          ) (lib.range 0 (frameRate * duration - 1))
+                        ))
+                      );
                 })
               ];
             };
             packages = {
-              testGenixFrame = mkGenixFrame pkgs "test-genix-frame.png" { };
-              testGenixPlymouthTheme = mkGenixPlymouthTheme pkgs {
+              testGenixFrame = pkgs.mkGenixFrame "test-genix-frame.png" { };
+              testGenixPlymouthTheme = pkgs.mkGenixPlymouthTheme {
                 name = "test-genix-plymouth-theme";
                 animation = time: {
                   # Wait WTF nix doesn't have ANY common math stuff?!
@@ -292,7 +290,7 @@
                   lib.mkIf cfg.enable {
                     boot.plymouth = {
                       themePackages = [
-                        (mkGenixPlymouthTheme pkgs {
+                        (pkgs.mkGenixPlymouthTheme {
                           name = "genix7000-autogenerated-theme";
                           animation = time: lib.recursiveUpdate cfg.defaults (cfg.animation time);
                           inherit (cfg) frameRate duration;
